@@ -1,49 +1,51 @@
 package com.egs.bank.controller;
 
-import com.egs.bank.domain.RefreshToken;
+import com.egs.bank.annotations.AuthParam;
+import com.egs.bank.domain.Card;
+import com.egs.bank.domain.JwtToken;
+import com.egs.bank.exception.EGSException;
+import com.egs.bank.exception.ErrorKey;
 import com.egs.bank.model.request.LoginRequest;
+import com.egs.bank.model.response.EGSResponse;
 import com.egs.bank.model.response.JwtResponse;
 import com.egs.bank.repository.CardRepository;
+import com.egs.bank.repository.JwtRepository;
 import com.egs.bank.security.jwt.JwtUtils;
 import com.egs.bank.security.services.UserDetailsImpl;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.password.PasswordEncoder;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
+import javax.servlet.http.HttpServletRequest;
 import javax.validation.Valid;
-import java.util.HashSet;
 import java.util.List;
-import java.util.Set;
-import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api/auth")
 public class AuthController {
     @Autowired
-    AuthenticationManager authenticationManager;
+    private AuthenticationManager authenticationManager;
 
     @Autowired
-    CardRepository cardRepository;
+    private CardRepository cardRepository;
 
     @Autowired
-    PasswordEncoder encoder;
+    private PasswordEncoder encoder;
 
     @Autowired
-    JwtUtils jwtUtils;
+    private JwtUtils jwtUtils;
 
-//    @Autowired
-//    RefreshTokenService refreshTokenService;
+    @Autowired
+    private JwtRepository jwtRepository;
 
     @PostMapping("/signin")
-    public ResponseEntity<?> authenticateCard(@Valid @RequestBody LoginRequest loginRequest) {
+    public EGSResponse<JwtResponse> authenticateCard(@Valid @RequestBody LoginRequest loginRequest) {
 
         Authentication authentication = authenticationManager
                 .authenticate(new UsernamePasswordAuthenticationToken(loginRequest.getCardNo(), loginRequest.getFingerprint()));
@@ -54,83 +56,47 @@ public class AuthController {
 
         String jwt = jwtUtils.generateJwtToken(userDetails);
 
-        List<String> roles = userDetails.getAuthorities().stream().map(item -> item.getAuthority())
-                .collect(Collectors.toList());
+        JwtResponse jwtResponse = new JwtResponse(jwt, userDetails.getId());
+        jwtRepository.save(new JwtToken(jwtResponse.getCardId(),jwtResponse.getToken(),jwtResponse.getType()));
 
-        //RefreshToken refreshToken = refreshTokenService.createRefreshToken(userDetails.getId());
-
-        return ResponseEntity.ok(new JwtResponse(jwt, new RefreshToken().getToken(), userDetails.getId()));
+        return new EGSResponse(jwtResponse);
     }
-//
-//    @PostMapping("/signup")
-//    public ResponseEntity<?> registerUser(@Valid @RequestBody SignupRequest signUpRequest) {
-//        if (cardRepository.existsByUsername(signUpRequest.getCardNO())) {
-//            return ResponseEntity.badRequest().body(new MessageResponse("Error: Username is already taken!"));
-//        }
-//
-//        if (cardRepository.existsByEmail(signUpRequest.getEmail())) {
-//            return ResponseEntity.badRequest().body(new MessageResponse("Error: Email is already in use!"));
-//        }
-//
-//        // Create new user's account
-//        User user = new User(signUpRequest.getCardNO(), signUpRequest.getEmail(),
-//                encoder.encode(signUpRequest.getPassword()));
-//
-//        Set<String> strRoles = signUpRequest.getRole();
-//        Set<Role> roles = new HashSet<>();
-//
-//        if (strRoles == null) {
-//            Role userRole = roleRepository.findByName(ERole.ROLE_USER)
-//                    .orElseThrow(() -> new RuntimeException("Error: Role is not found."));
-//            roles.add(userRole);
-//        } else {
-//            strRoles.forEach(role -> {
-//                switch (role) {
-//                    case "admin":
-//                        Role adminRole = roleRepository.findByName(ERole.ROLE_ADMIN)
-//                                .orElseThrow(() -> new RuntimeException("Error: Role is not found."));
-//                        roles.add(adminRole);
-//
-//                        break;
-//                    case "mod":
-//                        Role modRole = roleRepository.findByName(ERole.ROLE_MODERATOR)
-//                                .orElseThrow(() -> new RuntimeException("Error: Role is not found."));
-//                        roles.add(modRole);
-//
-//                        break;
-//                    default:
-//                        Role userRole = roleRepository.findByName(ERole.ROLE_USER)
-//                                .orElseThrow(() -> new RuntimeException("Error: Role is not found."));
-//                        roles.add(userRole);
-//                }
-//            });
-//        }
-//
-//        user.setRoles(roles);
-//        cardRepository.save(user);
-//
-//        return ResponseEntity.ok(new MessageResponse("User registered successfully!"));
-//    }
-//
-//    @PostMapping("/refreshtoken")
-//    public ResponseEntity<?> refreshtoken(@Valid @RequestBody TokenRefreshRequest request) {
-//        String requestRefreshToken = request.getRefreshToken();
-//
-//        return refreshTokenService.findByToken(requestRefreshToken)
-//                .map(refreshTokenService::verifyExpiration)
-//                .map(RefreshToken::getUser)
-//                .map(user -> {
-//                    String token = jwtUtils.generateTokenFromUsername(user.getCardNO());
-//                    return ResponseEntity.ok(new TokenRefreshResponse(token, requestRefreshToken));
-//                })
-//                .orElseThrow(() -> new TokenRefreshException(requestRefreshToken,
-//                        "Refresh token is not in database!"));
-//    }
-//
-//    @PostMapping("/logout")
-//    public ResponseEntity<?> logoutUser(@Valid @RequestBody LogOutRequest logOutRequest) {
-//        refreshTokenService.deleteByUserId(logOutRequest.getUserId());
-//        return ResponseEntity.ok(new MessageResponse("Log out successful!"));
-//    }
 
+    @ResponseStatus(HttpStatus.OK)
+    @ResponseBody
+    @PostMapping("/check-pin/{pin}")
+    EGSResponse<Void> checkPinValidity(@AuthParam Long cardId, @PathVariable String pin) {
+        Card card = cardRepository.findById(cardId).orElseThrow(() -> new EGSException(ErrorKey.CARD_NOT_FOUND));
+        boolean validPin = encoder.matches(pin, card.getPin());
+
+        if (validPin) {
+            card.setAttempts(0);
+        } else {
+            card.setAttempts(card.getAttempts() + 1);
+            if (card.getAttempts() == 3) {
+                card.setIsBlocked(1);
+            }
+            cardRepository.save(card);
+            return new EGSResponse();
+        }
+
+        cardRepository.save(card);
+
+        return new EGSResponse();
+    }
+
+    @ResponseStatus(HttpStatus.OK)
+    @ResponseBody
+    @PostMapping("/logout")
+    public EGSResponse<Void> logout(@AuthParam Long cardId) {
+        jwtRepository.deleteById(cardId);
+
+        return new EGSResponse();
+    }
+
+    @GetMapping
+    public EGSResponse<List<JwtToken>> getTokens() {
+
+        return new EGSResponse(jwtRepository.findAll());
+    }
 }

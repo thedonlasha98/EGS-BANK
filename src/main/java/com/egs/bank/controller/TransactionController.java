@@ -1,6 +1,7 @@
 package com.egs.bank.controller;
 
 import com.egs.bank.model.request.CashRequest;
+import com.egs.bank.model.response.EGSResponse;
 import com.egs.bank.service.TransactionService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
@@ -20,14 +21,18 @@ public class TransactionController {
     @ResponseBody
     @ResponseStatus(HttpStatus.CREATED)
     @PostMapping(value = "/deposit")
-    void cashDeposit(@RequestBody CashRequest cashRequest){
+    EGSResponse<Void> cashDeposit(@RequestBody CashRequest cashRequest){
         transactionService.cashDeposit(cashRequest);
+
+        return new EGSResponse();
     }
 
     @ResponseBody
     @ResponseStatus(HttpStatus.CREATED)
     @PostMapping(value = "/withdrawal")
-    void cashWithdrawal(@RequestBody CashRequest cashRequest){
+    EGSResponse<Void> cashWithdrawal(@RequestBody CashRequest cashRequest){
         transactionService.cashWithdrawal(cashRequest);
+
+        return new EGSResponse();
     }
 }

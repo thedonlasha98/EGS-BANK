@@ -62,7 +62,7 @@ public class CardServiceImpl implements CardService {
                 .cardHolder(cardRequest.getFirstName().toUpperCase() + " " + cardRequest.getLastName().toUpperCase())
                 .attempts(0)
                 .isBlocked(0)
-                .cardNo(encoder.encode(cardNo))
+                .cardNo(Base64.getEncoder().encodeToString(cardNo.getBytes()))
                 .fingerprint(encoder.encode(cardRequest.getFingerprint()))
                 .pin(encoder.encode(pin))
                 .build();

@@ -9,5 +9,4 @@ public class LoginRequest {
 
     String fingerprint;
 
-    String pin;
 }
