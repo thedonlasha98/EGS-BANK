@@ -27,7 +27,7 @@ public class CardController {
     }
 
     @ResponseBody
-    @ResponseStatus(HttpStatus.CREATED)
+    @ResponseStatus(HttpStatus.OK)
     @PostMapping
     CardDto registerCard(@RequestBody CardRequest cardRequest){
 
