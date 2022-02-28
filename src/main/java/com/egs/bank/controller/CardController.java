@@ -27,7 +27,7 @@ public class CardController {
     }
 
     @ResponseBody
-    @ResponseStatus(HttpStatus.OK)
+    @ResponseStatus(HttpStatus.CREATED)
     @PostMapping
     CardDto registerCard(@RequestBody CardRequest cardRequest){
 
@@ -35,7 +35,7 @@ public class CardController {
     }
 
     @ResponseBody
-    @ResponseStatus(HttpStatus.CREATED)
+    @ResponseStatus(HttpStatus.OK)
     @GetMapping(value = "/{id}/balance")
     Map<Currency, BigDecimal> getBalance(@PathVariable Long id){
 
